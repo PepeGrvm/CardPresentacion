@@ -309,8 +309,11 @@
         <!-- Header / Perfil -->
         <section class="profile-section">
             <div class="avatar-placeholder">
+                <!-- Se usará esta imagen para el vCard -->
                 <img src="PPICON.png" 
                  alt="JP" 
+                 id="avatarImage"
+                 onerror="this.src='https://ui-avatars.com/api/?name=JP&background=random&color=fff&size=128'"
                  >
             </div>
             <h1>José Manuel Ponce</h1>
@@ -373,13 +376,10 @@
 
     <script>
         // --- MOTOR DE PARTÍCULAS CONTINUAS ---
-        // Iniciar las partículas cuando carga la página
         window.addEventListener('load', () => {
             const buttons = document.querySelectorAll('.btn');
             
             buttons.forEach(btn => {
-                // Intervalo para generar una partícula cada cierto tiempo
-                // Reduje un poco el tiempo para que se note más el efecto "aura"
                 setInterval(() => {
                     createSubtleParticle(btn);
                 }, 200); 
@@ -392,7 +392,6 @@
             
             const rect = btn.getBoundingClientRect();
             
-            // Decidir aleatoriamente un lado del botón (0: Arriba, 1: Derecha, 2: Abajo, 3: Izquierda)
             const side = Math.floor(Math.random() * 4);
             
             let x, y, angle;
@@ -401,52 +400,47 @@
                 case 0: // Arriba
                     x = Math.random() * rect.width;
                     y = 0;
-                    angle = -Math.PI / 2; // Hacia arriba
+                    angle = -Math.PI / 2;
                     break;
                 case 1: // Derecha
                     x = rect.width;
                     y = Math.random() * rect.height;
-                    angle = 0; // Hacia la derecha
+                    angle = 0;
                     break;
                 case 2: // Abajo
                     x = Math.random() * rect.width;
                     y = rect.height;
-                    angle = Math.PI / 2; // Hacia abajo
+                    angle = Math.PI / 2;
                     break;
                 case 3: // Izquierda
                     x = 0;
                     y = Math.random() * rect.height;
-                    angle = Math.PI; // Hacia la izquierda
+                    angle = Math.PI;
                     break;
             }
             
-            // Variación aleatoria en el ángulo para que no sea tan recto
             angle += (Math.random() * 0.5 - 0.25); 
 
             particle.style.left = x + 'px';
             particle.style.top = y + 'px';
 
-            // Velocidad y dirección
-            const velocity = Math.random() * 10 + 5; // Velocidad suave
+            const velocity = Math.random() * 10 + 5;
             const tx = Math.cos(angle) * velocity;
             const ty = Math.sin(angle) * velocity;
 
             particle.style.setProperty('--tx', `${tx}px`);
             particle.style.setProperty('--ty', `${ty}px`);
 
-            // Añadir animación
             particle.style.animation = `particle-float 2s ease-out forwards`;
 
             btn.appendChild(particle);
 
-            // Limpieza
             setTimeout(() => {
                 particle.remove();
             }, 2000);
         }
 
-        function downloadVCard() {
-            // Datos del contacto
+        async function downloadVCard() {
             const contact = {
                 firstName: "José Manuel",
                 lastName: "Ponce",
@@ -455,7 +449,35 @@
                 url: window.location.href
             };
 
-            // Construcción del archivo VCF (vCard 3.0 estándar)
+            let photoBlock = '';
+
+            try {
+                // Intentar obtener la imagen del avatar y convertirla a base64
+                const avatarImg = document.getElementById('avatarImage');
+                if (avatarImg && avatarImg.src) {
+                    const response = await fetch(avatarImg.src);
+                    const blob = await response.blob();
+                    
+                    await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            // Obtener solo la parte base64 (remover encabezado data:image...)
+                            const base64 = reader.result.replace(/^data:.+;base64,/, '');
+                            // Bloque PHOTO compatible con vCard 3.0
+                            photoBlock = `PHOTO;ENCODING=b;TYPE=PNG:${base64}`;
+                            resolve();
+                        };
+                        reader.onerror = reject;
+                        reader.readAsDataURL(blob);
+                    });
+                }
+            } catch (e) {
+                console.log("No se pudo cargar la imagen para vCard:", e);
+                // Si falla, se descarga sin foto
+            }
+
+            // Construcción del archivo VCF
+            // Usamos filter(Boolean) para eliminar líneas vacías si no hay foto
             const vCardData = [
                 'BEGIN:VCARD',
                 'VERSION:3.0',
@@ -464,19 +486,17 @@
                 `TITLE:${contact.org}`,
                 `TEL;TYPE=CELL,VOICE:${contact.phone}`,
                 `URL:${contact.url}`,
+                photoBlock,
                 'END:VCARD'
-            ].join('\n');
+            ].filter(Boolean).join('\n');
 
-            // Crear un Blob con los datos
             const blob = new Blob([vCardData], { type: 'text/vcard;charset=utf-8' });
             
-            // Crear link de descarga temporal
             const url = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
             link.setAttribute('download', 'jose_ponce_contacto.vcf');
             
-            // Simular clic y limpieza
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
